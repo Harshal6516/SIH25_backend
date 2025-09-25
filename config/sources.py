@@ -1,5 +1,5 @@
 """
-Agriculture Sources - NO FILTERING
+Agriculture Sources - Economic Times + Times of India + Testbook Schemes
 """
 
 ALL_SOURCES = {
@@ -33,9 +33,25 @@ ALL_SOURCES = {
         "category": "news_agriculture",
         "language": "english",
         "scrape_method": "requests_bs4"
+    },
+    
+    "testbook_agriculture_schemes": {
+        "name": "Testbook Agriculture Schemes",
+        "base_url": "https://testbook.com/",
+        "news_urls": [
+            "https://testbook.com/ias-preparation/agriculture-schemes-in-india"
+        ],
+        "selectors": {
+            "title": "h1, h2, h3, h4, h5, h6",
+            "content": "p, .content, .article-content, div",
+            "date": ".date"
+        },
+        "category": "government_schemes",
+        "language": "english",
+        "scrape_method": "testbook_extractor"
     }
 }
 
-# NO KEYWORD FILTERING - These are just for reference, not used for filtering
+# NO KEYWORD FILTERING
 KERALA_AGRICULTURE_KEYWORDS = []
 REJECT_KEYWORDS = []

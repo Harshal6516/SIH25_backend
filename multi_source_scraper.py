@@ -1,5 +1,8 @@
 """
-Agriculture News Scraper - Economic Times + Times of India
+Agriculture Scraper with Testbook Schemes
+- Economic Times Agriculture News
+- Times of India Agriculture News  
+- Testbook Agriculture Schemes
 """
 import sys
 import os
@@ -11,11 +14,11 @@ from utils.file_manager import FileManager
 from datetime import datetime
 import time
 
-class AgricultureNewsScraper(BaseScraper):
-    """Agriculture News Scraper for ET and TOI"""
+class TestbookAgricultureScraper(BaseScraper):
+    """Agriculture scraper with Testbook schemes"""
     
     def scrape_articles(self):
-        """Scrape agriculture articles using site-specific methods"""
+        """Scrape using site-specific methods"""
         articles = []
         
         for news_url in self.source_config['news_urls']:
@@ -28,19 +31,19 @@ class AgricultureNewsScraper(BaseScraper):
                 
                 soup = self.parse_html(html)
                 
-                # Extract articles using site-specific methods
-                extracted_articles = self.extract_synopsis_articles(soup, news_url)
+                # Extract using site-specific methods
+                extracted_content = self.extract_synopsis_articles(soup, news_url)
                 
-                for article_data in extracted_articles:
+                for content_data in extracted_content:
                     article = {
                         'url': news_url,
                         'source': self.source_config['name'],
                         'category': self.source_config['category'],
                         'language': self.source_config['language'],
                         'scraped_at': datetime.now().isoformat(),
-                        'title': article_data['title'],
-                        'content': article_data['content'],
-                        'keywords': self.extract_keywords(article_data['title'] + " " + article_data['content'])
+                        'title': content_data['title'],
+                        'content': content_data['content'],
+                        'keywords': self.extract_keywords(content_data['title'] + " " + content_data['content'])
                     }
                     articles.append(article)
                 
@@ -53,30 +56,45 @@ class AgricultureNewsScraper(BaseScraper):
         return articles
 
 def main():
-    """Main function"""
-    print("🌾 AGRICULTURE NEWS SCRAPER")
-    print("📰 Economic Times + Times of India")
-    print("=" * 50)
+    """Main function with Testbook schemes"""
+    print("📚 TESTBOOK AGRICULTURE SCRAPER")
+    print("📰 Economic Times + Times of India + Testbook Schemes")
+    print("🎯 Comprehensive Government Scheme Information")
+    print("=" * 60)
     print(f"📅 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print()
     
     all_articles = []
+    successful_sources = 0
     
     for source_name, source_config in ALL_SOURCES.items():
-        print(f"📰 Processing: {source_config['name']}")
+        print(f"\n📊 Processing: {source_config['name']}")
         print(f"🔗 URL: {source_config['news_urls'][0]}")
         
+        if 'testbook' in source_name.lower():
+            print("📚 TESTBOOK SCHEME EXTRACTION:")
+            print("   📋 PM-KISAN, PMFBY, PMKSY, eNAM, etc.")
+            print("   📄 Detailed scheme descriptions and benefits")
+            print("   🎯 Government policy information")
+        elif 'economic' in source_name.lower():
+            print("📈 ECONOMIC TIMES NEWS")
+        elif 'times' in source_name.lower():
+            print("📰 TIMES OF INDIA NEWS")
+        
         try:
-            scraper = AgricultureNewsScraper(source_config)
+            scraper = TestbookAgricultureScraper(source_config)
             articles = scraper.run()
             
             if articles:
                 all_articles.extend(articles)
-                print(f"✅ SUCCESS: {len(articles)} articles extracted")
+                successful_sources += 1
                 
-                # Show content quality
-                avg_content_length = sum(len(a.get('content', '')) for a in articles) // len(articles)
-                print(f"📊 Average content length: {avg_content_length} characters")
+                total_chars = sum(len(a.get('content', '')) for a in articles)
+                avg_chars = total_chars // len(articles)
+                
+                print(f"✅ SUCCESS: {len(articles)} items extracted")
+                print(f"📊 Total content: {total_chars:,} characters")
+                print(f"📊 Average per item: {avg_chars} characters")
                 
                 # Save individual file
                 file_manager = FileManager()
@@ -84,34 +102,42 @@ def main():
                 print(f"💾 Saved: {filename}")
                 
                 # Show samples
-                print(f"📰 Sample articles:")
+                print(f"📋 Sample content:")
                 for i, article in enumerate(articles[:3], 1):
                     title = article.get('title', '')[:70]
                     content_len = len(article.get('content', ''))
-                    keywords = ', '.join(article.get('keywords', [])[:3])
+                    keywords = ', '.join(article.get('keywords', [])[:4])
+                    
                     print(f"   {i}. {title}...")
-                    print(f"      Length: {content_len} chars | Keywords: {keywords}")
+                    print(f"      📊 {content_len} chars | 🔑 {keywords}")
+                    
+                    # For Testbook, show scheme preview
+                    if 'testbook' in source_name.lower():
+                        content_preview = article.get('content', '')[:150].replace('\n', ' ')
+                        print(f"      📄 Preview: {content_preview}...")
                 print()
             else:
-                print("⚠️  No articles found")
+                print("⚠️  No content extracted")
                 
         except Exception as e:
             print(f"❌ ERROR: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            print("🔍 Continuing to next source...")
         
-        print("⏳ Moving to next source...")
         time.sleep(2)
     
-    # Save consolidated file
+    # Final results
     if all_articles:
-        print(f"\n🎉 SCRAPING COMPLETE!")
-        print(f"✅ Total articles: {len(all_articles)}")
+        print(f"\n🎉 TESTBOOK AGRICULTURE SCRAPING COMPLETE!")
+        print(f"✅ Successful sources: {successful_sources}/{len(ALL_SOURCES)}")
+        print(f"📊 Total items: {len(all_articles)}")
         
-        # Quality summary
-        total_content = sum(len(a.get('content', '')) for a in all_articles)
-        avg_content = total_content // len(all_articles)
-        print(f"📊 Average article length: {avg_content} characters")
+        # Content analysis
+        scheme_count = len([a for a in all_articles if a.get('category') == 'government_schemes'])
+        news_count = len(all_articles) - scheme_count
+        
+        print(f"\n📊 Content Mix:")
+        print(f"   📰 News Articles: {news_count}")
+        print(f"   📋 Government Schemes: {scheme_count}")
         
         # Top keywords
         all_keywords = {}
@@ -119,19 +145,20 @@ def main():
             for keyword in article.get('keywords', []):
                 all_keywords[keyword] = all_keywords.get(keyword, 0) + 1
         
-        top_keywords = sorted(all_keywords.items(), key=lambda x: x[1], reverse=True)[:5]
+        top_keywords = sorted(all_keywords.items(), key=lambda x: x[1], reverse=True)[:8]
         print(f"\n🔑 Top Keywords:")
         for keyword, count in top_keywords:
-            print(f"   🌾 {keyword}: {count} articles")
+            print(f"   🌾 {keyword}: {count} mentions")
         
+        # Save consolidated
         file_manager = FileManager()
         consolidated_file = file_manager.save_consolidated_text(all_articles)
-        print(f"\n📁 Consolidated file: {consolidated_file}")
-        print(f"🚀 Ready for your farmer advisory app!")
+        print(f"\n📁 CONSOLIDATED FILE: {consolidated_file}")
+        print(f"🚀 Complete agriculture data ready!")
         
         return all_articles
     else:
-        print("❌ No articles found")
+        print("❌ No content found")
         return []
 
 if __name__ == "__main__":
