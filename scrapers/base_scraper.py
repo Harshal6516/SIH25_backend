@@ -1,6 +1,5 @@
 """
-DEEP WEBSITE SCRAPER - Goes Beyond First Page
-Finds article listings, follows pagination, scrapes individual articles
+Enhanced Scraper - Gets ALL TOI Articles with Less Strict Filtering
 """
 import requests
 import time
@@ -10,16 +9,13 @@ from datetime import datetime
 from abc import ABC, abstractmethod
 from bs4 import BeautifulSoup
 import re
-import unicodedata
-from urllib.parse import urljoin, urlparse
 
 class BaseScraper(ABC):
-    """Deep scraper that explores websites thoroughly"""
+    """Enhanced scraper to get ALL TOI articles"""
     
     def __init__(self, source_config):
         self.source_config = source_config
         self.session = requests.Session()
-        self.scraped_urls = set()  # Track scraped URLs to avoid duplicates
         self.setup_session()
         self.setup_logging()
         
@@ -29,460 +25,398 @@ class BaseScraper(ABC):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
-            'Connection': 'keep-alive',
+            'Connection': 'keep-alive'
         })
-        self.session.timeout = 15
+        self.session.timeout = 20
         
     def setup_logging(self):
         """Setup logging"""
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(self.__class__.__name__)
     
     def get_page(self, url):
         """Fetch webpage"""
-        if url in self.scraped_urls:
-            return None  # Already scraped
-        
-        for attempt in range(2):
-            try:
-                response = self.session.get(url, allow_redirects=True)
-                response.raise_for_status()
-                
-                if response.apparent_encoding:
-                    response.encoding = response.apparent_encoding
-                else:
-                    response.encoding = 'utf-8'
-                
-                self.scraped_urls.add(url)
-                return response.text
-            except Exception as e:
-                self.logger.warning(f"Attempt {attempt + 1} failed for {url}: {str(e)}")
-                if attempt < 1:
-                    time.sleep(2)
-        return None
+        try:
+            self.logger.info(f"Fetching: {url}")
+            response = self.session.get(url)
+            response.raise_for_status()
+            response.encoding = 'utf-8'
+            return response.text
+        except Exception as e:
+            self.logger.error(f"Error fetching {url}: {str(e)}")
+            return None
     
     def parse_html(self, html_content):
         """Parse HTML"""
         return BeautifulSoup(html_content, 'html.parser')
     
     def clean_text(self, text):
-        """Clean text"""
+        """Basic text cleaning"""
         if not text:
             return ""
         
+        text = text.replace('*agriculture*', 'agriculture')
         text = re.sub(r'\s+', ' ', text)
         text = text.strip()
         
-        # Remove UI noise
-        ui_noise = [
-            'Share Filter BY DATE Last Hour Today This Week This Month This Hour TYPE Video Photo Article Podcast DURATION Short Medium Long Agriculture News',
-            'Home > News > Agriculture',
-            'Follow us on',
-            'Subscribe now',
-            'Related Articles',
-            'Advertisement',
-            'Sponsored Content'
+        return text
+    
+    def light_refine_content(self, text):
+        """Light content refinement - only remove obvious junk"""
+        if not text:
+            return ""
+        
+        # Only remove the most obvious junk
+        light_junk_patterns = [
+            r'Advertisement',
+            r'Must Watch',
+            r'Subscribe now',
+            r'Follow us on',
+            r'Share this',
+            r'Read more about',
+            r'Also read:',
+            r'Copyright.*?reserved',
+            r'\(Reuters\)|\(PTI\)|\(ANI\)',
         ]
         
-        for noise in ui_noise:
-            text = text.replace(noise, '')
+        for pattern in light_junk_patterns:
+            text = re.sub(pattern, '', text, flags=re.IGNORECASE)
         
-        return text.strip()
+        # Clean up spacing
+        text = re.sub(r'\s+', ' ', text)
+        text = text.strip()
+        
+        return text
     
     def is_meaningful_content(self, title, content):
-        """Validate content"""
+        """Very lenient validation - accept more content"""
         if not title or not content:
             return False, "Empty content"
         
-        if len(content) < 50:
-            return False, f"Too short ({len(content)} chars)"
+        # Much more lenient requirements
+        if len(content) < 20:  # Very low threshold
+            return False, f"Content too short ({len(content)} chars)"
         
-        words = content.split()
-        if len(words) < 10:
-            return False, f"Too few words ({len(words)})"
+        if len(title) < 8:  # Very low threshold
+            return False, f"Title too short ({len(title)} chars)"
         
-        from config.sources import KERALA_AGRICULTURE_KEYWORDS, REJECT_KEYWORDS
-        
-        combined_text = (title + " " + content).lower()
-        
-        # Check rejects
-        reject_terms = ['cinema', 'movie', 'cricket', 'sports', 'politics']
-        reject_count = sum(1 for term in reject_terms if term in combined_text)
-        if reject_count > 0:
-            return False, "Contains non-agriculture terms"
-        
-        # Check agriculture relevance
-        agriculture_terms = [
-            'agriculture', 'farming', 'crop', 'farmer', 'cultivation', 'harvest',
-            'coconut', 'rice', 'rubber', 'spice', 'kerala', 'weather', 'rain',
-            'price', 'market', 'export', 'import', 'government', 'scheme',
-            'കൃഷി', 'കർഷക', 'നെല്ല്', 'തേങ്ങ', 'റബ്ബർ', 'കേരളം'
-        ]
-        
-        agri_score = sum(1 for term in agriculture_terms if term in combined_text)
-        
-        if agri_score >= 1:
-            return True, "Good content"
-        else:
-            return False, f"No agriculture relevance"
+        # Accept almost everything
+        return True, "Content accepted"
     
-    def find_article_listing_pages(self, soup, base_url):
-        """Find pages that contain article listings"""
-        listing_pages = []
-        
-        # Look for pagination links
-        pagination_selectors = [
-            '.pagination a', '.pager a', '.page-numbers a',
-            'a[href*="page"]', 'a[href*="Page"]',
-            '.next a', '.more a', 'a[rel="next"]'
-        ]
-        
-        for selector in pagination_selectors:
-            try:
-                links = soup.select(selector)
-                for link in links:
-                    href = link.get('href')
-                    if href:
-                        full_url = urljoin(base_url, href)
-                        if full_url not in listing_pages and len(listing_pages) < 5:  # Limit to 5 pages
-                            listing_pages.append(full_url)
-            except:
-                continue
-        
-        # Look for category/section links
-        category_selectors = [
-            'a[href*="agriculture"]', 'a[href*="farming"]', 'a[href*="crop"]',
-            'a[href*="news"]', 'a[href*="category"]', 'a[href*="section"]',
-            '.menu a', '.nav a', '.category a'
-        ]
-        
-        for selector in category_selectors:
-            try:
-                links = soup.select(selector)
-                for link in links:
-                    href = link.get('href')
-                    link_text = link.get_text().strip().lower()
-                    
-                    # Check if link text suggests agriculture content
-                    if any(term in link_text for term in ['agriculture', 'farming', 'crop', 'news']):
-                        if href:
-                            full_url = urljoin(base_url, href)
-                            if full_url not in listing_pages and len(listing_pages) < 10:
-                                listing_pages.append(full_url)
-            except:
-                continue
-        
-        return listing_pages
-    
-    def find_individual_article_links(self, soup, base_url):
-        """Find links to individual articles on listing pages"""
-        article_links = []
-        
-        # Common patterns for article links
-        article_link_patterns = [
-            # Links with article-indicating classes/attributes
-            '.article-title a', '.news-title a', '.post-title a',
-            '.headline a', '.story-headline a', '.entry-title a',
-            'h1 a', 'h2 a', 'h3 a',
-            
-            # Links in article containers
-            '.article a', '.news-item a', '.post a',
-            '.story a', '.content a[href*="article"]',
-            
-            # Links with date patterns (likely articles)
-            'a[href*="2025"]', 'a[href*="2024"]',
-            
-            # Links in list structures
-            'li a', '.list a', 'ul a'
-        ]
-        
-        for pattern in article_link_patterns:
-            try:
-                links = soup.select(pattern)
-                for link in links:
-                    href = link.get('href')
-                    link_text = link.get_text().strip()
-                    
-                    if not href or len(link_text) < 10:
-                        continue
-                    
-                    # Check if it looks like an article
-                    if self.looks_like_article_link(href, link_text):
-                        full_url = urljoin(base_url, href)
-                        if full_url not in article_links and len(article_links) < 20:
-                            article_links.append(full_url)
-            except:
-                continue
-        
-        return article_links
-    
-    def looks_like_article_link(self, href, link_text):
-        """Check if a link looks like it leads to an article"""
-        # Skip navigation/UI links
-        skip_patterns = [
-            'javascript:', 'mailto:', 'tel:', '#',
-            '/login', '/register', '/contact', '/about',
-            'facebook.com', 'twitter.com', 'instagram.com',
-            'youtube.com', 'whatsapp.com'
-        ]
-        
-        for pattern in skip_patterns:
-            if pattern in href.lower():
-                return False
-        
-        # Skip very short or generic link text
-        generic_texts = [
-            'home', 'about', 'contact', 'login', 'register',
-            'more', 'read more', 'click here', 'next', 'previous',
-            'share', 'like', 'follow', 'subscribe'
-        ]
-        
-        if link_text.lower().strip() in generic_texts:
-            return False
-        
-        # Prefer links that look like article titles
-        article_indicators = [
-            'agriculture', 'farming', 'crop', 'farmer', 'cultivation',
-            'harvest', 'coconut', 'rice', 'rubber', 'kerala', 'price',
-            'market', 'weather', 'government', 'scheme', 'news',
-            'കൃഷി', 'കർഷക', 'കേരളം', 'വില'
-        ]
-        
-        combined_text = (href + " " + link_text).lower()
-        has_agriculture = any(term in combined_text for term in article_indicators)
-        
-        # Also accept if it looks like a news article (has reasonable length title)
-        looks_like_title = len(link_text) > 15 and len(link_text) < 200
-        
-        return has_agriculture or looks_like_title
-    
-    def scrape_deep_content(self, base_urls):
-        """Deep scraping - goes beyond first page"""
+    def extract_synopsis_articles(self, soup, url):
+        """Extract ALL articles with multiple aggressive methods"""
         articles = []
         
-        for base_url in base_urls:
-            try:
-                self.logger.info(f"🔍 DEEP SCRAPING: {base_url}")
-                
-                # Step 1: Get the main page
-                html = self.get_page(base_url)
-                if not html:
+        self.logger.info(f"🔍 AGGRESSIVE extraction from: {url}")
+        
+        if 'timesofindia' in url.lower():
+            self.logger.info("📰 Using ALL TOI extraction methods")
+            
+            # Use ALL methods for TOI
+            methods = [
+                self.extract_toi_complete_articles,
+                self.extract_toi_by_paragraphs,
+                self.extract_toi_by_sentences,
+                self.extract_toi_by_text_blocks,
+                self.extract_toi_by_patterns,
+                self.extract_toi_raw_text
+            ]
+            
+            for i, method in enumerate(methods, 1):
+                try:
+                    self.logger.info(f"📋 TOI Method {i}: {method.__name__}")
+                    method_articles = method(soup, url)
+                    
+                    if method_articles:
+                        # Add new articles (avoid duplicates by title)
+                        existing_titles = {article['title'].lower() for article in articles}
+                        new_articles = [a for a in method_articles if a['title'].lower() not in existing_titles]
+                        articles.extend(new_articles)
+                        self.logger.info(f"✅ Method {i} found {len(method_articles)} articles ({len(new_articles)} new)")
+                    else:
+                        self.logger.info(f"⚠️  Method {i} found no articles")
+                        
+                except Exception as e:
+                    self.logger.debug(f"Method {i} failed: {str(e)}")
                     continue
+            
+        else:
+            self.logger.info("📈 Using Economic Times extraction")
+            articles = self.extract_et_complete_articles(soup, url)
+        
+        self.logger.info(f"🎯 TOTAL ARTICLES FOUND: {len(articles)}")
+        return articles
+    
+    def extract_toi_complete_articles(self, soup, url):
+        """Method 1: Extract from TOI structure"""
+        articles = []
+        
+        full_text = soup.get_text(separator='\n')
+        paragraphs = full_text.split('\n\n')
+        
+        for para in paragraphs:
+            para = para.strip()
+            if len(para) < 50:
+                continue
+            
+            clean_para = self.clean_text(para)
+            sentences = clean_para.split('. ')
+            
+            if len(sentences) >= 2:
+                title = sentences[0].strip()
+                content = '. '.join(sentences[1:]).strip()
                 
-                soup = self.parse_html(html)
+                if len(title) > 15 and len(content) > 30:
+                    refined_title = self.light_refine_content(title)
+                    refined_content = self.light_refine_content(content)
+                    
+                    is_good, reason = self.is_meaningful_content(refined_title, refined_content)
+                    if is_good:
+                        articles.append({'title': refined_title, 'content': refined_content})
+        
+        return articles
+    
+    def extract_toi_by_paragraphs(self, soup, url):
+        """Method 2: Extract by splitting paragraphs differently"""
+        articles = []
+        
+        full_text = soup.get_text(separator='\n')
+        
+        # Split by single newlines and group
+        lines = [line.strip() for line in full_text.split('\n') if len(line.strip()) > 30]
+        
+        i = 0
+        while i < len(lines) - 1:
+            # Take current line as title, next few as content
+            potential_title = self.clean_text(lines[i])
+            
+            # Collect next few lines as content
+            content_lines = []
+            j = i + 1
+            while j < len(lines) and j < i + 4:  # Get next 1-3 lines
+                content_lines.append(lines[j])
+                j += 1
+            
+            potential_content = ' '.join(content_lines)
+            potential_content = self.clean_text(potential_content)
+            
+            if len(potential_title) > 20 and len(potential_content) > 50:
+                refined_title = self.light_refine_content(potential_title)
+                refined_content = self.light_refine_content(potential_content)
                 
-                # Step 2: Extract content from main page if any
-                main_content = self.extract_content(soup, base_url)
-                if main_content:
-                    articles.append(self.create_article_dict(main_content, base_url))
+                is_good, reason = self.is_meaningful_content(refined_title, refined_content)
+                if is_good:
+                    articles.append({'title': refined_title, 'content': refined_content})
+                    i = j  # Skip processed lines
+                else:
+                    i += 1
+            else:
+                i += 1
+        
+        return articles
+    
+    def extract_toi_by_sentences(self, soup, url):
+        """Method 3: Extract by sentence grouping"""
+        articles = []
+        
+        full_text = soup.get_text()
+        sentences = full_text.split('. ')
+        
+        i = 0
+        while i < len(sentences) - 2:
+            # Group sentences: 1 as title, 2-4 as content
+            title = self.clean_text(sentences[i])
+            content_sentences = sentences[i+1:i+4]
+            content = '. '.join(content_sentences)
+            content = self.clean_text(content)
+            
+            if len(title) > 25 and len(content) > 60:
+                refined_title = self.light_refine_content(title)
+                refined_content = self.light_refine_content(content)
                 
-                # Step 3: Find article listing pages (pagination, categories)
-                listing_pages = self.find_article_listing_pages(soup, base_url)
-                self.logger.info(f"📄 Found {len(listing_pages)} listing pages")
-                
-                # Step 4: Process each listing page
-                for listing_url in listing_pages:
-                    try:
-                        self.logger.info(f"📋 Processing listing: {listing_url}")
-                        
-                        listing_html = self.get_page(listing_url)
-                        if listing_html:
-                            listing_soup = self.parse_html(listing_html)
-                            
-                            # Step 5: Find individual article links
-                            article_links = self.find_individual_article_links(listing_soup, base_url)
-                            self.logger.info(f"🔗 Found {len(article_links)} article links")
-                            
-                            # Step 6: Scrape each individual article
-                            for article_url in article_links[:10]:  # Limit to prevent overload
-                                try:
-                                    self.logger.info(f"📰 Scraping article: {article_url}")
-                                    
-                                    article_html = self.get_page(article_url)
-                                    if article_html:
-                                        article_soup = self.parse_html(article_html)
-                                        article_content = self.extract_content(article_soup, article_url)
-                                        
-                                        if article_content:
-                                            articles.append(self.create_article_dict(article_content, article_url))
-                                            self.logger.info(f"✅ ARTICLE SCRAPED: {article_content['title'][:50]}...")
-                                    
-                                    self.rate_limit()
-                                    
-                                except Exception as e:
-                                    self.logger.debug(f"Error scraping article {article_url}: {str(e)}")
-                                    continue
-                        
-                        self.rate_limit()
-                        
-                    except Exception as e:
-                        self.logger.debug(f"Error processing listing {listing_url}: {str(e)}")
+                is_good, reason = self.is_meaningful_content(refined_title, refined_content)
+                if is_good:
+                    articles.append({'title': refined_title, 'content': refined_content})
+                    i += 4  # Skip processed sentences
+                else:
+                    i += 1
+            else:
+                i += 1
+        
+        return articles
+    
+    def extract_toi_by_text_blocks(self, soup, url):
+        """Method 4: Extract by text block analysis"""
+        articles = []
+        
+        # Find all div, p, and span elements with substantial text
+        text_elements = soup.find_all(['div', 'p', 'span', 'article', 'section'])
+        
+        for element in text_elements:
+            text = self.clean_text(element.get_text())
+            
+            if 80 <= len(text) <= 800:  # Reasonable article length
+                # Try to split into title and content
+                lines = text.split('\n')
+                if len(lines) >= 2:
+                    title = lines[0].strip()
+                    content = '\n'.join(lines[1:]).strip()
+                else:
+                    sentences = text.split('. ')
+                    if len(sentences) >= 3:
+                        title = sentences[0].strip()
+                        content = '. '.join(sentences[1:]).strip()
+                    else:
                         continue
                 
+                if len(title) > 15 and len(content) > 40:
+                    refined_title = self.light_refine_content(title)
+                    refined_content = self.light_refine_content(content)
+                    
+                    is_good, reason = self.is_meaningful_content(refined_title, refined_content)
+                    if is_good:
+                        articles.append({'title': refined_title, 'content': refined_content})
+        
+        return articles
+    
+    def extract_toi_by_patterns(self, soup, url):
+        """Method 5: Extract using specific patterns from your attachment"""
+        articles = []
+        
+        full_text = soup.get_text()
+        
+        # Patterns based on your TOI attachment
+        specific_patterns = [
+            r'([^.]*agriculture\s+scientists[^.]{20,}\.)\s*([^.]+\.(?:\s*[^.]+\.){1,4})',
+            r'([^.]*Federation[^.]{20,}\.)\s*([^.]+\.(?:\s*[^.]+\.){1,4})',
+            r'([^.]*NABARD[^.]{20,}\.)\s*([^.]+\.(?:\s*[^.]+\.){1,4})',
+            r'([^.]*ICAR[^.]{20,}\.)\s*([^.]+\.(?:\s*[^.]+\.){1,4})',
+            r'([^.]*minister[^.]{20,}\.)\s*([^.]+\.(?:\s*[^.]+\.){1,4})',
+            r'([^.]*government[^.]{20,}\.)\s*([^.]+\.(?:\s*[^.]+\.){1,4})',
+            r'([^.]*University[^.]{20,}\.)\s*([^.]+\.(?:\s*[^.]+\.){1,4})',
+            r'([^.]*Bihar[^.]{20,}\.)\s*([^.]+\.(?:\s*[^.]+\.){1,4})',
+        ]
+        
+        for pattern in specific_patterns:
+            matches = re.findall(pattern, full_text, re.IGNORECASE | re.MULTILINE)
+            for match in matches:
+                title, content = match
+                title = self.light_refine_content(title)
+                content = self.light_refine_content(content)
+                
+                if len(title) > 20 and len(content) > 30:
+                    is_good, reason = self.is_meaningful_content(title, content)
+                    if is_good:
+                        articles.append({'title': title, 'content': content})
+        
+        return articles
+    
+    def extract_toi_raw_text(self, soup, url):
+        """Method 6: Raw text extraction with aggressive splitting"""
+        articles = []
+        
+        # Get raw text and try different splitting methods
+        raw_text = soup.get_text()
+        
+        # Method A: Split by multiple newlines
+        blocks = raw_text.split('\n\n\n')
+        for block in blocks:
+            block = self.clean_text(block)
+            if 100 <= len(block) <= 1000:
+                sentences = block.split('. ')
+                if len(sentences) >= 3:
+                    title = sentences[0]
+                    content = '. '.join(sentences[1:])
+                    
+                    title = self.light_refine_content(title)
+                    content = self.light_refine_content(content)
+                    
+                    if len(title) > 15 and len(content) > 50:
+                        is_good, reason = self.is_meaningful_content(title, content)
+                        if is_good:
+                            articles.append({'title': title, 'content': content})
+        
+        # Method B: Split by periods and group aggressively
+        all_sentences = raw_text.split('. ')
+        
+        i = 0
+        while i < len(all_sentences) - 3:
+            title_candidate = self.clean_text(all_sentences[i])
+            content_candidate = '. '.join(all_sentences[i+1:i+5])
+            content_candidate = self.clean_text(content_candidate)
+            
+            # Check if it looks like a valid article
+            if (30 <= len(title_candidate) <= 200 and 
+                len(content_candidate) > 100 and
+                any(word in title_candidate.lower() for word in ['agriculture', 'farmer', 'crop', 'government', 'india', 'state', 'minister', 'university', 'council'])):
+                
+                title_candidate = self.light_refine_content(title_candidate)
+                content_candidate = self.light_refine_content(content_candidate)
+                
+                is_good, reason = self.is_meaningful_content(title_candidate, content_candidate)
+                if is_good:
+                    articles.append({'title': title_candidate, 'content': content_candidate})
+                    i += 5
+                else:
+                    i += 1
+            else:
+                i += 1
+        
+        return articles
+    
+    def extract_et_complete_articles(self, soup, url):
+        """Extract complete articles from Economic Times"""
+        articles = []
+        
+        containers = soup.select('.eachStory')
+        
+        for container in containers:
+            try:
+                title_elem = container.find(['h1', 'h2', 'h3']) or container.select_one('.story-headline, .headline, .title')
+                title = "Economic Times News"
+                
+                if title_elem:
+                    title = self.clean_text(title_elem.get_text())
+                
+                content = self.clean_text(container.get_text())
+                if title in content:
+                    content = content.replace(title, '').strip()
+                
+                title = self.light_refine_content(title)
+                content = self.light_refine_content(content)
+                
+                is_good, reason = self.is_meaningful_content(title, content)
+                if is_good:
+                    articles.append({'title': title, 'content': content})
+                
             except Exception as e:
-                self.logger.error(f"Error deep scraping {base_url}: {str(e)}")
                 continue
         
         return articles
     
-    def extract_content(self, soup, url):
-        """Extract content using multiple methods"""
-        methods = [
-            self.try_configured_selectors,
-            self.try_article_selectors,
-            self.try_paragraph_extraction
-        ]
-        
-        for method in methods:
-            try:
-                result = method(soup)
-                if result:
-                    title, content = result
-                    is_good, reason = self.is_meaningful_content(title, content)
-                    if is_good:
-                        return {'title': title, 'content': content}
-                    else:
-                        self.logger.debug(f"Content rejected: {reason}")
-            except:
-                continue
-        
-        return None
-    
-    def try_configured_selectors(self, soup):
-        """Try configured selectors"""
-        selectors = self.source_config.get('selectors', {})
-        
-        # Title
-        title = "Agriculture News"
-        title_selectors = selectors.get('title', 'h1').split(', ')
-        
-        for title_sel in title_selectors:
-            try:
-                title_elem = soup.select_one(title_sel.strip())
-                if title_elem:
-                    title = self.clean_text(title_elem.get_text())
-                    if len(title) > 5:
-                        break
-            except:
-                continue
-        
-        # Content
-        content_selectors = selectors.get('content', '.content').split(', ')
-        
-        for content_sel in content_selectors:
-            try:
-                content_elem = soup.select_one(content_sel.strip())
-                if content_elem:
-                    for noise in content_elem(['script', 'style', 'nav']):
-                        noise.decompose()
-                    
-                    content = self.clean_text(content_elem.get_text())
-                    if len(content) > 50:
-                        return (title, content)
-            except:
-                continue
-        
-        return None
-    
-    def try_article_selectors(self, soup):
-        """Try common article selectors"""
-        title = "Agriculture Info"
-        
-        for title_sel in ['h1', 'h2', '.title', '.headline', '.story-headline']:
-            try:
-                title_elem = soup.select_one(title_sel)
-                if title_elem:
-                    title = self.clean_text(title_elem.get_text())
-                    if len(title) > 5:
-                        break
-            except:
-                continue
-        
-        content_selectors = [
-            'article', '.article-content', '.story-content', '.news-content',
-            '.post-content', '.content', '.main-content', 'main'
-        ]
-        
-        for content_sel in content_selectors:
-            try:
-                content_elem = soup.select_one(content_sel)
-                if content_elem:
-                    for noise in content_elem(['script', 'style', 'nav', 'footer']):
-                        noise.decompose()
-                    
-                    content = self.clean_text(content_elem.get_text())
-                    if len(content) > 50:
-                        return (title, content)
-            except:
-                continue
-        
-        return None
-    
-    def try_paragraph_extraction(self, soup):
-        """Extract from paragraphs"""
-        title = "Agriculture News"
-        
-        for title_sel in ['h1', 'h2', 'h3']:
-            try:
-                title_elem = soup.select_one(title_sel)
-                if title_elem:
-                    title = self.clean_text(title_elem.get_text())
-                    if len(title) > 5:
-                        break
-            except:
-                continue
-        
-        paragraphs = soup.find_all('p')
-        content_parts = []
-        
-        for p in paragraphs:
-            p_text = self.clean_text(p.get_text())
-            if len(p_text) > 20:
-                content_parts.append(p_text)
-        
-        if len(content_parts) >= 2:
-            content = ' '.join(content_parts[:10])
-            return (title, content)
-        
-        return None
-    
-    def create_article_dict(self, content_data, url):
-        """Create article dictionary"""
-        return {
-            'url': url,
-            'source': self.source_config['name'],
-            'category': self.source_config['category'],
-            'language': self.source_config['language'],
-            'scraped_at': datetime.now().isoformat(),
-            'title': content_data['title'],
-            'content': content_data['content'],
-            'keywords': self.extract_keywords(content_data['title'] + " " + content_data['content'])
-        }
-    
     def extract_keywords(self, text):
         """Extract keywords"""
-        from config.sources import KERALA_AGRICULTURE_KEYWORDS
-        
+        refined_text = self.light_refine_content(text)
+        words = refined_text.lower().split()
         keywords = []
-        text_lower = text.lower()
         
-        for keyword in KERALA_AGRICULTURE_KEYWORDS[:20]:
-            if keyword.lower() in text_lower:
-                keywords.append(keyword)
+        for word in words:
+            if len(word) > 4 and word.isalpha():
+                keywords.append(word)
         
-        return keywords[:8]
+        return list(dict.fromkeys(keywords))[:8]
     
     def rate_limit(self):
         """Rate limiting"""
-        time.sleep(1.5 + random.uniform(0, 1))
+        time.sleep(1.5)
     
     @abstractmethod
     def scrape_articles(self):
         pass
     
     def run(self):
-        """Run deep scraper"""
-        self.logger.info(f"Starting DEEP SCRAPER for {self.source_config['name']}")
+        """Run aggressive scraper"""
+        self.logger.info(f"Starting AGGRESSIVE scraper for {self.source_config['name']}")
         articles = self.scrape_articles()
-        self.logger.info(f"Found {len(articles)} articles through deep scraping")
+        self.logger.info(f"Found {len(articles)} articles with aggressive extraction")
         return articles
