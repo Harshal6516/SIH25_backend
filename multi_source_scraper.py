@@ -1,10 +1,10 @@
 """
-Agriculture Scraper with output2 folder for consolidated files
+Agriculture Scraper - Create output2 and delete output folder after consolidation
 - Economic Times Agriculture News
 - Times of India Agriculture News  
 - Testbook Agriculture Schemes
 
-Output: news.txt and schemes.txt in output2 folder
+Output: news.txt and schemes.txt in output2 folder, then delete output folder
 """
 import sys
 import os
@@ -58,11 +58,12 @@ class SimpleConsolidatedScraper(BaseScraper):
         return articles
 
 def main():
-    """Main function with output2 folder for consolidated files"""
-    print("📚 AGRICULTURE SCRAPER - OUTPUT2 CONSOLIDATED FILES")
+    """Main function with output2 folder and output folder deletion"""
+    print("📚 AGRICULTURE SCRAPER - CLEAN OUTPUT")
     print("📰 News: Economic Times + Times of India")
     print("📋 Schemes: Testbook Government Schemes")
-    print("📁 Output: news.txt + schemes.txt in output2/ folder")
+    print("📁 Final Output: output2/ folder only")
+    print("🗑️  Temporary files will be cleaned up")
     print("=" * 70)
     print(f"📅 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print()
@@ -103,10 +104,10 @@ def main():
                 print(f"📊 Total content: {total_chars:,} characters")
                 print(f"📊 Average per item: {avg_chars} characters")
                 
-                # Save individual file (still timestamped in output/daily)
+                # Save individual file temporarily in output/daily
                 file_manager = FileManager()
                 filename = file_manager.save_articles_to_text(articles, source_name)
-                print(f"💾 Individual file: {filename}")
+                print(f"💾 Temporary file: {filename}")
                 
                 # Show samples
                 print(f"📋 Sample content:")
@@ -126,7 +127,7 @@ def main():
         
         time.sleep(2)
     
-    # Create consolidated files in output2 folder
+    # Create consolidated files and clean up
     if all_articles:
         print(f"\n🎉 SCRAPING COMPLETE!")
         print(f"✅ Successful sources: {successful_sources}/{len(ALL_SOURCES)}")
@@ -139,9 +140,12 @@ def main():
         
         file_manager = FileManager()
         
+        # Create consolidated files in output2
+        print(f"\n📁 CREATING CONSOLIDATED FILES IN OUTPUT2...")
+        
         # Create NEWS consolidated file → output2/news.txt
         if news_articles:
-            print(f"\n📰 CREATING output2/news.txt...")
+            print(f"📰 Creating news.txt...")
             
             news_file = file_manager.save_news_consolidated(news_articles)
             
@@ -152,12 +156,11 @@ def main():
             print(f"   📁 File: {news_file}")
             print(f"   📊 Articles: {len(news_articles)}")
             print(f"   📊 Total content: {news_total_chars:,} characters")
-            print(f"   📊 Average per article: {news_avg_chars} characters")
             print(f"   📰 Sources: Economic Times + Times of India")
         
         # Create SCHEMES consolidated file → output2/schemes.txt
         if scheme_articles:
-            print(f"\n📋 CREATING output2/schemes.txt...")
+            print(f"📋 Creating schemes.txt...")
             
             schemes_file = file_manager.save_schemes_consolidated(scheme_articles)
             
@@ -168,37 +171,24 @@ def main():
             print(f"   📁 File: {schemes_file}")
             print(f"   📊 Schemes: {len(scheme_articles)}")
             print(f"   📊 Total content: {schemes_total_chars:,} characters")
-            print(f"   📊 Average per scheme: {schemes_avg_chars} characters")
             print(f"   📋 Source: Testbook Government Schemes")
         
-        # Show top keywords for each type
-        if news_articles:
-            news_keywords = {}
-            for article in news_articles:
-                for keyword in article.get('keywords', []):
-                    news_keywords[keyword] = news_keywords.get(keyword, 0) + 1
-            
-            top_news_keywords = sorted(news_keywords.items(), key=lambda x: x[1], reverse=True)[:5]
-            print(f"\n📰 Top News Keywords:")
-            for keyword, count in top_news_keywords:
-                print(f"   📈 {keyword}: {count} mentions")
+        # DELETE THE OUTPUT FOLDER
+        print(f"\n🗑️  CLEANING UP TEMPORARY FILES...")
+        deletion_success = file_manager.delete_output_folder()
         
-        if scheme_articles:
-            scheme_keywords = {}
-            for article in scheme_articles:
-                for keyword in article.get('keywords', []):
-                    scheme_keywords[keyword] = scheme_keywords.get(keyword, 0) + 1
-            
-            top_scheme_keywords = sorted(scheme_keywords.items(), key=lambda x: x[1], reverse=True)[:5]
-            print(f"\n📋 Top Scheme Keywords:")
-            for keyword, count in top_scheme_keywords:
-                print(f"   📋 {keyword}: {count} mentions")
+        if deletion_success:
+            print(f"✅ Cleanup complete! Only output2/ folder remains.")
+        else:
+            print(f"⚠️  Cleanup had issues, but consolidated files are ready.")
         
-        print(f"\n🚀 CONSOLIDATED FILES READY IN OUTPUT2!")
-        print(f"📁 Location: output2/ folder")
-        print(f"📰 output2/news.txt - Latest agriculture news & market updates")
-        print(f"📋 output2/schemes.txt - Complete government scheme details")
-        print(f"💼 Perfect for your farmer advisory application!")
+        # Show final result
+        print(f"\n🚀 FINAL RESULT:")
+        print(f"📁 Folder: output2/ (same directory as config/)")
+        print(f"📰 output2/news.txt - {len(news_articles)} news articles")
+        print(f"📋 output2/schemes.txt - {len(scheme_articles)} government schemes")
+        print(f"🗑️  Temporary 'output' folder deleted")
+        print(f"💼 Clean setup ready for your farmer app!")
         
         return {
             'news_articles': news_articles,

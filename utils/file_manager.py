@@ -1,8 +1,9 @@
 """
-File Manager - Save consolidated files ONLY in output2 folder
+File Manager - Create output2 at root level and delete output folder after consolidation
 """
 import os
 import json
+import shutil
 from datetime import datetime
 
 class FileManager:
@@ -16,10 +17,10 @@ class FileManager:
         os.makedirs('output', exist_ok=True)
         os.makedirs('output/daily', exist_ok=True)
         os.makedirs('output/consolidated', exist_ok=True)
-        os.makedirs('output2', exist_ok=True)  # Create output2 folder
+        os.makedirs('output2', exist_ok=True)  # Create output2 at root level (same as config)
     
     def save_articles_to_text(self, articles, source_name):
-        """Save articles to individual text file in output/daily"""
+        """Save articles to individual text file in output/daily (temporary)"""
         if not articles:
             return None
         
@@ -54,11 +55,11 @@ class FileManager:
             return None
     
     def save_news_consolidated(self, news_articles):
-        """Save NEWS consolidated file ONLY in output2/news.txt"""
+        """Save NEWS consolidated file in output2/news.txt"""
         if not news_articles:
             return None
         
-        filename = "output2/news.txt"  # ONLY save in output2
+        filename = "output2/news.txt"  # Root level output2
         
         try:
             with open(filename, 'w', encoding='utf-8') as f:
@@ -102,11 +103,11 @@ class FileManager:
             return None
     
     def save_schemes_consolidated(self, scheme_articles):
-        """Save SCHEMES consolidated file ONLY in output2/schemes.txt"""
+        """Save SCHEMES consolidated file in output2/schemes.txt"""
         if not scheme_articles:
             return None
         
-        filename = "output2/schemes.txt"  # ONLY save in output2
+        filename = "output2/schemes.txt"  # Root level output2
         
         try:
             with open(filename, 'w', encoding='utf-8') as f:
@@ -150,40 +151,20 @@ class FileManager:
             print(f"Error saving schemes consolidated file: {str(e)}")
             return None
     
-    def save_consolidated_text(self, all_articles, filename_prefix="agriculture_consolidated"):
-        """Save general consolidated file (if needed) - NOT USED IN MAIN FLOW"""
-        if not all_articles:
-            return None
-        
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"output/consolidated/{filename_prefix}_{timestamp}.txt"
-        
+    def delete_output_folder(self):
+        """Delete the entire output folder after consolidation"""
         try:
-            with open(filename, 'w', encoding='utf-8') as f:
-                f.write("AGRICULTURE CONTENT - ALL SOURCES\n")
-                f.write("=" * 60 + "\n")
-                f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"Total Items: {len(all_articles)}\n")
-                f.write("=" * 60 + "\n\n")
-                
-                for i, article in enumerate(all_articles, 1):
-                    title = article.get('title', 'No Title')
-                    content = article.get('content', 'No Content')
-                    source = article.get('source', 'Unknown')
-                    category = article.get('category', 'Unknown')
-                    keywords = article.get('keywords', [])
-                    
-                    f.write(f"ITEM {i}\n")
-                    f.write("-" * 20 + "\n")
-                    f.write(f"SOURCE: {source}\n")
-                    f.write(f"CATEGORY: {category}\n")
-                    f.write(f"TITLE: {title}\n\n")
-                    f.write(f"CONTENT:\n{content}\n\n")
-                    f.write(f"KEYWORDS: {', '.join(keywords)}\n")
-                    f.write("\n" + "=" * 60 + "\n\n")
-            
-            return filename
-            
+            if os.path.exists('output'):
+                shutil.rmtree('output')
+                print("🗑️  Deleted temporary 'output' folder")
+                return True
+            else:
+                print("⚠️  'output' folder not found")
+                return False
         except Exception as e:
-            print(f"Error saving consolidated file: {str(e)}")
-            return None
+            print(f"❌ Error deleting output folder: {str(e)}")
+            return False
+    
+    def save_consolidated_text(self, all_articles, filename_prefix="agriculture_consolidated"):
+        """Save general consolidated file (NOT USED)"""
+        return None
