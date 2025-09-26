@@ -1,8 +1,10 @@
 """
-Agriculture Scraper with Testbook Schemes
+Agriculture Scraper with Simple Consolidated Files
 - Economic Times Agriculture News
 - Times of India Agriculture News  
 - Testbook Agriculture Schemes
+
+Output: news.txt and schemes.txt in consolidated folder
 """
 import sys
 import os
@@ -14,8 +16,8 @@ from utils.file_manager import FileManager
 from datetime import datetime
 import time
 
-class TestbookAgricultureScraper(BaseScraper):
-    """Agriculture scraper with Testbook schemes"""
+class SimpleConsolidatedScraper(BaseScraper):
+    """Scraper that creates simple consolidated files"""
     
     def scrape_articles(self):
         """Scrape using site-specific methods"""
@@ -56,15 +58,18 @@ class TestbookAgricultureScraper(BaseScraper):
         return articles
 
 def main():
-    """Main function with Testbook schemes"""
-    print("📚 TESTBOOK AGRICULTURE SCRAPER")
-    print("📰 Economic Times + Times of India + Testbook Schemes")
-    print("🎯 Comprehensive Government Scheme Information")
-    print("=" * 60)
+    """Main function with simple consolidated files"""
+    print("📚 AGRICULTURE SCRAPER - SIMPLE CONSOLIDATED FILES")
+    print("📰 News: Economic Times + Times of India")
+    print("📋 Schemes: Testbook Government Schemes")
+    print("📁 Output: news.txt + schemes.txt")
+    print("=" * 70)
     print(f"📅 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print()
     
     all_articles = []
+    news_articles = []  # For ET + TOI
+    scheme_articles = []  # For Testbook schemes
     successful_sources = 0
     
     for source_name, source_config in ALL_SOURCES.items():
@@ -72,49 +77,45 @@ def main():
         print(f"🔗 URL: {source_config['news_urls'][0]}")
         
         if 'testbook' in source_name.lower():
-            print("📚 TESTBOOK SCHEME EXTRACTION:")
-            print("   📋 PM-KISAN, PMFBY, PMKSY, eNAM, etc.")
-            print("   📄 Detailed scheme descriptions and benefits")
-            print("   🎯 Government policy information")
-        elif 'economic' in source_name.lower():
-            print("📈 ECONOMIC TIMES NEWS")
-        elif 'times' in source_name.lower():
-            print("📰 TIMES OF INDIA NEWS")
+            print("📋 SCHEMES → will go to schemes.txt")
+        else:
+            print("📰 NEWS → will go to news.txt")
         
         try:
-            scraper = TestbookAgricultureScraper(source_config)
+            scraper = SimpleConsolidatedScraper(source_config)
             articles = scraper.run()
             
             if articles:
                 all_articles.extend(articles)
                 successful_sources += 1
                 
+                # Separate articles by type
+                if 'testbook' in source_name.lower() or source_config.get('category') == 'government_schemes':
+                    scheme_articles.extend(articles)
+                    print(f"✅ SUCCESS: {len(articles)} SCHEMES extracted")
+                else:
+                    news_articles.extend(articles)
+                    print(f"✅ SUCCESS: {len(articles)} NEWS articles extracted")
+                
                 total_chars = sum(len(a.get('content', '')) for a in articles)
                 avg_chars = total_chars // len(articles)
                 
-                print(f"✅ SUCCESS: {len(articles)} items extracted")
                 print(f"📊 Total content: {total_chars:,} characters")
                 print(f"📊 Average per item: {avg_chars} characters")
                 
-                # Save individual file
+                # Save individual file (still timestamped)
                 file_manager = FileManager()
                 filename = file_manager.save_articles_to_text(articles, source_name)
-                print(f"💾 Saved: {filename}")
+                print(f"💾 Individual file: {filename}")
                 
                 # Show samples
                 print(f"📋 Sample content:")
-                for i, article in enumerate(articles[:3], 1):
+                for i, article in enumerate(articles[:2], 1):
                     title = article.get('title', '')[:70]
                     content_len = len(article.get('content', ''))
-                    keywords = ', '.join(article.get('keywords', [])[:4])
                     
                     print(f"   {i}. {title}...")
-                    print(f"      📊 {content_len} chars | 🔑 {keywords}")
-                    
-                    # For Testbook, show scheme preview
-                    if 'testbook' in source_name.lower():
-                        content_preview = article.get('content', '')[:150].replace('\n', ' ')
-                        print(f"      📄 Preview: {content_preview}...")
+                    print(f"      📊 {content_len} characters")
                 print()
             else:
                 print("⚠️  No content extracted")
@@ -125,41 +126,89 @@ def main():
         
         time.sleep(2)
     
-    # Final results
+    # Create simple consolidated files
     if all_articles:
-        print(f"\n🎉 TESTBOOK AGRICULTURE SCRAPING COMPLETE!")
+        print(f"\n🎉 SCRAPING COMPLETE!")
         print(f"✅ Successful sources: {successful_sources}/{len(ALL_SOURCES)}")
         print(f"📊 Total items: {len(all_articles)}")
         
-        # Content analysis
-        scheme_count = len([a for a in all_articles if a.get('category') == 'government_schemes'])
-        news_count = len(all_articles) - scheme_count
+        # Show breakdown
+        print(f"\n📊 Content Breakdown:")
+        print(f"   📰 News Articles: {len(news_articles)}")
+        print(f"   📋 Government Schemes: {len(scheme_articles)}")
         
-        print(f"\n📊 Content Mix:")
-        print(f"   📰 News Articles: {news_count}")
-        print(f"   📋 Government Schemes: {scheme_count}")
-        
-        # Top keywords
-        all_keywords = {}
-        for article in all_articles:
-            for keyword in article.get('keywords', []):
-                all_keywords[keyword] = all_keywords.get(keyword, 0) + 1
-        
-        top_keywords = sorted(all_keywords.items(), key=lambda x: x[1], reverse=True)[:8]
-        print(f"\n🔑 Top Keywords:")
-        for keyword, count in top_keywords:
-            print(f"   🌾 {keyword}: {count} mentions")
-        
-        # Save consolidated
         file_manager = FileManager()
-        consolidated_file = file_manager.save_consolidated_text(all_articles)
-        print(f"\n📁 CONSOLIDATED FILE: {consolidated_file}")
-        print(f"🚀 Complete agriculture data ready!")
         
-        return all_articles
+        # Create NEWS consolidated file → news.txt (FIXED: no timestamp parameter)
+        if news_articles:
+            print(f"\n📰 CREATING NEWS.TXT...")
+            
+            news_file = file_manager.save_news_consolidated(news_articles)
+            
+            news_total_chars = sum(len(a.get('content', '')) for a in news_articles)
+            news_avg_chars = news_total_chars // len(news_articles)
+            
+            print(f"✅ NEWS FILE CREATED:")
+            print(f"   📁 File: {news_file}")
+            print(f"   📊 Articles: {len(news_articles)}")
+            print(f"   📊 Total content: {news_total_chars:,} characters")
+            print(f"   📊 Average per article: {news_avg_chars} characters")
+            print(f"   📰 Sources: Economic Times + Times of India")
+        
+        # Create SCHEMES consolidated file → schemes.txt (FIXED: no timestamp parameter)
+        if scheme_articles:
+            print(f"\n📋 CREATING SCHEMES.TXT...")
+            
+            schemes_file = file_manager.save_schemes_consolidated(scheme_articles)
+            
+            schemes_total_chars = sum(len(a.get('content', '')) for a in scheme_articles)
+            schemes_avg_chars = schemes_total_chars // len(scheme_articles)
+            
+            print(f"✅ SCHEMES FILE CREATED:")
+            print(f"   📁 File: {schemes_file}")
+            print(f"   📊 Schemes: {len(scheme_articles)}")
+            print(f"   📊 Total content: {schemes_total_chars:,} characters")
+            print(f"   📊 Average per scheme: {schemes_avg_chars} characters")
+            print(f"   📋 Source: Testbook Government Schemes")
+        
+        # Show top keywords for each type
+        if news_articles:
+            news_keywords = {}
+            for article in news_articles:
+                for keyword in article.get('keywords', []):
+                    news_keywords[keyword] = news_keywords.get(keyword, 0) + 1
+            
+            top_news_keywords = sorted(news_keywords.items(), key=lambda x: x[1], reverse=True)[:5]
+            print(f"\n📰 Top News Keywords:")
+            for keyword, count in top_news_keywords:
+                print(f"   📈 {keyword}: {count} mentions")
+        
+        if scheme_articles:
+            scheme_keywords = {}
+            for article in scheme_articles:
+                for keyword in article.get('keywords', []):
+                    scheme_keywords[keyword] = scheme_keywords.get(keyword, 0) + 1
+            
+            top_scheme_keywords = sorted(scheme_keywords.items(), key=lambda x: x[1], reverse=True)[:5]
+            print(f"\n📋 Top Scheme Keywords:")
+            for keyword, count in top_scheme_keywords:
+                print(f"   📋 {keyword}: {count} mentions")
+        
+        print(f"\n🚀 SIMPLE CONSOLIDATED FILES READY!")
+        print(f"📁 Location: output/consolidated/")
+        print(f"📰 news.txt - Latest agriculture news & market updates")
+        print(f"📋 schemes.txt - Complete government scheme details")
+        print(f"💼 Perfect for your farmer advisory application!")
+        
+        return {
+            'news_articles': news_articles,
+            'scheme_articles': scheme_articles,
+            'total_articles': all_articles
+        }
+    
     else:
         print("❌ No content found")
-        return []
+        return None
 
 if __name__ == "__main__":
     main()
