@@ -1,5 +1,5 @@
 """
-File Manager with Simple Consolidated File Names
+File Manager - Save consolidated files ONLY in output2 folder
 """
 import os
 import json
@@ -16,9 +16,10 @@ class FileManager:
         os.makedirs('output', exist_ok=True)
         os.makedirs('output/daily', exist_ok=True)
         os.makedirs('output/consolidated', exist_ok=True)
+        os.makedirs('output2', exist_ok=True)  # Create output2 folder
     
     def save_articles_to_text(self, articles, source_name):
-        """Save articles to individual text file"""
+        """Save articles to individual text file in output/daily"""
         if not articles:
             return None
         
@@ -53,11 +54,11 @@ class FileManager:
             return None
     
     def save_news_consolidated(self, news_articles):
-        """Save NEWS consolidated file as news.txt"""
+        """Save NEWS consolidated file ONLY in output2/news.txt"""
         if not news_articles:
             return None
         
-        filename = "output/consolidated/news.txt"
+        filename = "output2/news.txt"  # ONLY save in output2
         
         try:
             with open(filename, 'w', encoding='utf-8') as f:
@@ -101,11 +102,11 @@ class FileManager:
             return None
     
     def save_schemes_consolidated(self, scheme_articles):
-        """Save SCHEMES consolidated file as schemes.txt"""
+        """Save SCHEMES consolidated file ONLY in output2/schemes.txt"""
         if not scheme_articles:
             return None
         
-        filename = "output/consolidated/schemes.txt"
+        filename = "output2/schemes.txt"  # ONLY save in output2
         
         try:
             with open(filename, 'w', encoding='utf-8') as f:
@@ -150,7 +151,7 @@ class FileManager:
             return None
     
     def save_consolidated_text(self, all_articles, filename_prefix="agriculture_consolidated"):
-        """Save general consolidated file (if needed)"""
+        """Save general consolidated file (if needed) - NOT USED IN MAIN FLOW"""
         if not all_articles:
             return None
         

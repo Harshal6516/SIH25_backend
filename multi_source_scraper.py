@@ -1,10 +1,10 @@
 """
-Agriculture Scraper with Simple Consolidated Files
+Agriculture Scraper with output2 folder for consolidated files
 - Economic Times Agriculture News
 - Times of India Agriculture News  
 - Testbook Agriculture Schemes
 
-Output: news.txt and schemes.txt in consolidated folder
+Output: news.txt and schemes.txt in output2 folder
 """
 import sys
 import os
@@ -58,11 +58,11 @@ class SimpleConsolidatedScraper(BaseScraper):
         return articles
 
 def main():
-    """Main function with simple consolidated files"""
-    print("📚 AGRICULTURE SCRAPER - SIMPLE CONSOLIDATED FILES")
+    """Main function with output2 folder for consolidated files"""
+    print("📚 AGRICULTURE SCRAPER - OUTPUT2 CONSOLIDATED FILES")
     print("📰 News: Economic Times + Times of India")
     print("📋 Schemes: Testbook Government Schemes")
-    print("📁 Output: news.txt + schemes.txt")
+    print("📁 Output: news.txt + schemes.txt in output2/ folder")
     print("=" * 70)
     print(f"📅 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print()
@@ -77,9 +77,9 @@ def main():
         print(f"🔗 URL: {source_config['news_urls'][0]}")
         
         if 'testbook' in source_name.lower():
-            print("📋 SCHEMES → will go to schemes.txt")
+            print("📋 SCHEMES → will go to output2/schemes.txt")
         else:
-            print("📰 NEWS → will go to news.txt")
+            print("📰 NEWS → will go to output2/news.txt")
         
         try:
             scraper = SimpleConsolidatedScraper(source_config)
@@ -103,7 +103,7 @@ def main():
                 print(f"📊 Total content: {total_chars:,} characters")
                 print(f"📊 Average per item: {avg_chars} characters")
                 
-                # Save individual file (still timestamped)
+                # Save individual file (still timestamped in output/daily)
                 file_manager = FileManager()
                 filename = file_manager.save_articles_to_text(articles, source_name)
                 print(f"💾 Individual file: {filename}")
@@ -126,7 +126,7 @@ def main():
         
         time.sleep(2)
     
-    # Create simple consolidated files
+    # Create consolidated files in output2 folder
     if all_articles:
         print(f"\n🎉 SCRAPING COMPLETE!")
         print(f"✅ Successful sources: {successful_sources}/{len(ALL_SOURCES)}")
@@ -139,9 +139,9 @@ def main():
         
         file_manager = FileManager()
         
-        # Create NEWS consolidated file → news.txt (FIXED: no timestamp parameter)
+        # Create NEWS consolidated file → output2/news.txt
         if news_articles:
-            print(f"\n📰 CREATING NEWS.TXT...")
+            print(f"\n📰 CREATING output2/news.txt...")
             
             news_file = file_manager.save_news_consolidated(news_articles)
             
@@ -155,9 +155,9 @@ def main():
             print(f"   📊 Average per article: {news_avg_chars} characters")
             print(f"   📰 Sources: Economic Times + Times of India")
         
-        # Create SCHEMES consolidated file → schemes.txt (FIXED: no timestamp parameter)
+        # Create SCHEMES consolidated file → output2/schemes.txt
         if scheme_articles:
-            print(f"\n📋 CREATING SCHEMES.TXT...")
+            print(f"\n📋 CREATING output2/schemes.txt...")
             
             schemes_file = file_manager.save_schemes_consolidated(scheme_articles)
             
@@ -194,10 +194,10 @@ def main():
             for keyword, count in top_scheme_keywords:
                 print(f"   📋 {keyword}: {count} mentions")
         
-        print(f"\n🚀 SIMPLE CONSOLIDATED FILES READY!")
-        print(f"📁 Location: output/consolidated/")
-        print(f"📰 news.txt - Latest agriculture news & market updates")
-        print(f"📋 schemes.txt - Complete government scheme details")
+        print(f"\n🚀 CONSOLIDATED FILES READY IN OUTPUT2!")
+        print(f"📁 Location: output2/ folder")
+        print(f"📰 output2/news.txt - Latest agriculture news & market updates")
+        print(f"📋 output2/schemes.txt - Complete government scheme details")
         print(f"💼 Perfect for your farmer advisory application!")
         
         return {
